@@ -1,126 +1,164 @@
 import streamlit as st
 import pandas as pd
+import time
 from data_processor import DataProcessor
 from stats_engine import StatsEngine
 from visualizer import Visualizer
 from ml_model import BayesClassifier
 
-# Inicializar los módulos de tu proyecto
+# 1. Configuracion de la pagina
+st.set_page_config(page_title="DataBayes Pro", layout="wide")
+
+# 2. CSS Avanzado 
+st.markdown("""
+    <style>
+        [data-testid="stHeader"] { display: none; }
+        .main-header {
+            position: fixed; top: 0; left: 0; width: 100%;
+            background: linear-gradient(90deg, #1f77b4 0%, #00d4ff 100%);
+            color: white; z-index: 9999; padding: 15px 0;
+            text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .main-header h1 { margin: 0; font-size: 28px; font-weight: 700; }
+        .main .block-container { padding-top: 100px !important; }
+        .bayes-formula {
+            background-color: #f0f7ff; padding: 15px; border-radius: 10px;
+            border: 1px dashed #1f77b4; text-align: center; font-size: 20px;
+            margin-bottom: 20px;
+        }
+    </style>
+    <div class="main-header"><h1>ANALIZADOR BAYESIANO</h1></div>
+""", unsafe_allow_html=True)
+
+# Inicializar componentes
 dp = DataProcessor()
 stats = StatsEngine()
 viz = Visualizer()
 ml = BayesClassifier()
 
-# Configuración básica de la página
-st.set_page_config(page_title="Analizador Bayesiano", layout="wide")
-st.title("Analizador Estadístico y Clasificador Bayesiano")
+# 3. Seccion principal de carga (Siempre visible al inicio)
+st.subheader("Carga de Base de Datos")
+archivo = st.file_uploader("Arrastra tu archivo CSV aqui o haz clic para buscar", type="csv")
 
-# 1. Carga de datos
-uploaded_file = st.file_uploader("1. Sube tu archivo CSV", type="csv")
-
-if uploaded_file is not None:
-    # Procesar el archivo subido
-    df = dp.load_data(uploaded_file)
-    cols_info = dp.detect_columns(df)
+# Si no hay archivo, mostramos un mensaje y no cargamos nada mas
+if archivo is None:
+    st.info("Por favor, sube un archivo CSV para habilitar las secciones de analisis y visualizacion.")
+else:
+    # 4. Animacion de carga y lectura de archivo
+    with st.spinner('Procesando datos, detectando columnas y limpiando registros...'):
+        time.sleep(1.2) # Pausa para visualizar la animacion de carga
+        df = dp.load_data(archivo)
+        cols = dp.detect_columns(df)
+        
+    # Mostrar confirmacion con el nombre del archivo
+    st.success(f"Archivo '{archivo.name}' cargado exitosamente. Total de registros: {len(df)}")
     
-    st.write("### Explorador de Datos")
-    # Mostrar la tabla completa con scroll
-    st.dataframe(df, height=250)
+    # 5. Creacion de Ventanas (Solo aparecen cuando el archivo ya esta cargado)
+    tab1, tab2, tab3 = st.tabs(["1. Gestion de Datos", "2. Analisis Bayesiano", "3. Machine Learning"])
+
+    # ==========================================
+    # VENTANA 1: GESTION DE DATOS
+    # ==========================================
+    with tab1:
+        st.subheader("Exploracion de Base de Datos")
+        with st.container(border=True):
+            st.dataframe(df, use_container_width=True)
+
+    opciones = cols["binary"] + cols["categorical"]
     
-    # Mostrar tipos de columnas detectados en la barra lateral
-    st.sidebar.header("Información de Columnas")
-    st.sidebar.write("**Numéricas:**", len(cols_info["numeric"]))
-    st.sidebar.write("**Categóricas:**", len(cols_info["categorical"]))
+    # ==========================================
+    # VENTANA 2: TEOREMA DE BAYES
+    # ==========================================
+    with tab2:
+        st.subheader("Motor de Probabilidades Condicionales")
+        
+        with st.expander("Que es el Teorema de Bayes? (Haz clic para aprender)"):
+            st.markdown("""
+            El Teorema de Bayes nos permite actualizar la probabilidad de un evento a medida que aparece nueva evidencia.
+            """)
+            st.markdown(r'<div class="bayes-formula">P(A|B) = \frac{P(B|A) \cdot P(A)}{P(B)}</div>', unsafe_allow_html=True)
+            st.markdown("""
+            * **P(A|B)**: Probabilidad de que ocurra A sabiendo que paso B (lo que queremos descubrir).
+            * **P(A)**: Probabilidad inicial del evento (sin saber nada mas).
+            * **P(B|A)**: Probabilidad de ver la evidencia si el evento es cierto.
+            """)
 
-    # Unimos binarias y categóricas porque la encuesta maneja respuestas de texto
-    posibles_objetivos = cols_info["binary"] + cols_info["categorical"]
-    
-    if posibles_objetivos:
-        st.markdown("---")
-        st.subheader("2. Análisis Probabilístico (Teorema de Bayes)")
-        
-        col1, col2 = st.columns(2)
-        
-        # Lado Izquierdo: Configuración del Evento A (Objetivo)
-        with col1:
-            target = st.selectbox("1. Variable Objetivo (Columna del Evento A)", posibles_objetivos)
-            # Extraer las respuestas únicas de esa columna
-            valores_unicos_target = df[target].dropna().unique()
-            target_value = st.selectbox("2. Valor exacto que representa el Evento A", valores_unicos_target)
-            
-        # Lado Derecho: Configuración del Evento B (Evidencia)
-        with col2:
-            feature = st.selectbox("3. Variable de Evidencia (Columna B)", cols_info["numeric"] + cols_info["categorical"])
-            
-            # Si la evidencia es texto, mostrar selectbox. Si es número, mostrar campo de texto.
-            if feature in cols_info["categorical"]:
-                valores_unicos_feature = df[feature].dropna().unique()
-                threshold = st.selectbox("4. Valor exacto de la Evidencia", valores_unicos_feature)
-            else:
-                threshold = st.text_input("4. Umbral numérico de Evidencia (Ej. mayor a...)", value="0")
+        if opciones:
+            with st.container(border=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    target = st.selectbox("Evento Principal (A)", opciones)
+                    val_a = st.selectbox("Valor deseado para el Evento A", df[target].unique())
+                with c2:
+                    feat = st.selectbox("Evidencia Observada (B)", cols["numeric"] + cols["categorical"])
+                    if feat in cols["categorical"]:
+                        val_b = st.selectbox("Valor de la evidencia B", df[feat].unique())
+                    else:
+                        val_b = st.text_input("Umbral de evidencia B (mayor a...)", value="0")
 
-        # Botón de ejecución para Probabilidades
-        if st.button("Calcular Probabilidades"):
-            p_a, p_b_given_a, p_a_given_b = stats.calculate_bayes(df, target, target_value, feature, threshold)
-            
-            st.success("Resultados del Teorema de Bayes")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("P(A) - Probabilidad Base", f"{p_a:.2%}")
-            c2.metric("P(B|A) - Prob. Condicional", f"{p_b_given_a:.2%}")
-            c3.metric("P(A|B) - Probabilidad Bayesiana", f"{p_a_given_b:.2%}")
-            
-            st.info(f"**Lectura del resultado:** \n\nLa probabilidad general de que '{target}' sea **'{target_value}'** es del **{p_a:.2%}**.\n\nSin embargo, si sabemos como hecho que '{feature}' es **'{threshold}'**, la probabilidad cambia a **{p_a_given_b:.2%}**.")
-            
-            # Gráfica de distribución
-            st.markdown("---")
-            st.subheader("Distribución de los Datos")
-            try:
-                st.plotly_chart(viz.plot_distribution(df, feature, target), use_container_width=True)
-            except Exception as e:
-                st.warning("Nota: La gráfica de distribución funciona mejor cuando la variable de evidencia (B) es numérica.")
+                if st.button("Calcular Teorema de Bayes", type="primary"):
+                    pa, pba, pab = stats.calculate_bayes(df, target, val_a, feat, val_b)
+                    pb = (pba * pa) / pab if pab > 0 else 0
 
-        # =========================================================================
-        # SECCIÓN 3: CLASIFICADOR NAIVE BAYES (Machine Learning)
-        # =========================================================================
-        st.markdown("---")
-        st.subheader("3. Clasificador Automático (Machine Learning - Naive Bayes)")
-        st.write("Selecciona múltiples variables para que el modelo aprenda a predecir el evento objetivo.")
-        
-        # Juntar todas las columnas que pueden servir como predictores
-        todas_las_columnas = cols_info["numeric"] + cols_info["categorical"]
-        # Remover la columna objetivo para que el modelo no haga "trampa"
-        if target in todas_las_columnas:
-            todas_las_columnas.remove(target) 
-        
-        features_selected = st.multiselect("Selecciona variables predictoras (Evidencias)", todas_las_columnas)
-        
-        if st.button("Entrenar Modelo Bayesiano"):
-            if not features_selected:
-                st.error("Por favor, selecciona al menos una variable predictora antes de entrenar.")
-            else:
-                try:
-                    # Llamar al modelo
-                    cm, acc, sens, esp = ml.evaluate_model(df, target, target_value, features_selected)
+                    st.markdown("---")
+                    st.subheader("Resultados del Analisis")
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Probabilidad Base P(A)", f"{pa:.2%}")
+                    m2.metric("Condicional P(B|A)", f"{pba:.2%}")
+                    m3.metric("Resultado Final P(A|B)", f"{pab:.2%}")
                     
-                    st.success("¡Modelo entrenado y evaluado con el 30% de los datos!")
+                    st.write("### Desglose del Calculo Paso a Paso")
+                    st.markdown(f"""
+                    Para llegar a este resultado, el sistema aplico la formula matematica con tus datos:
                     
-                    # Mostrar métricas solicitadas
+                    $$P(A|B) = \\frac{{{pba:.4f} \\cdot {pa:.4f}}}{{{pb:.4f}}} = {pab:.4f}$$
+                    
+                    **Interpretacion Detallada:**
+                    1. **La Base:** Sin saber ninguna otra informacion, la probabilidad general de que '{target}' sea '{val_a}' es del **{pa:.2%}**.
+                    2. **La Evidencia:** Analizamos la evidencia '{feat}' = '{val_b}'. Nos dimos cuenta de que cuando el evento A si ocurre, esta evidencia esta presente el **{pba:.2%}** de las veces.
+                    3. **La Conclusion:** Al integrar esta evidencia, nuestra certeza cambia. Ahora sabemos que si observamos la evidencia '{val_b}', la probabilidad real de que ocurra '{val_a}' se actualiza al **{pab:.2%}**.
+                    """)
+                    
+                    st.plotly_chart(viz.plot_distribution(df, feat, target), use_container_width=True)
+
+    # ==========================================
+    # VENTANA 3: MACHINE LEARNING
+    # ==========================================
+    with tab3:
+        st.subheader("Clasificador Inteligente (Naive Bayes)")
+        st.write("Selecciona multiples variables para entrenar a la IA a predecir el evento objetivo.")
+        
+        with st.container(border=True):
+            preds = st.multiselect("Variables predictoras (Evidencias)", [c for c in df.columns if c != target])
+            
+            if st.button("Entrenar Modelo Predictivo", type="primary"):
+                if preds:
+                    with st.spinner('Entrenando algoritmo clasificador con tus datos...'):
+                        time.sleep(1)
+                        cm, acc, sen, esp = ml.evaluate_model(df, target, val_a, preds)
+                    
+                    st.success("Modelo entrenado con exito.")
                     col_m1, col_m2, col_m3 = st.columns(3)
                     col_m1.metric("Exactitud (Accuracy)", f"{acc:.2%}")
-                    col_m2.metric("Sensibilidad (Recall)", f"{sens:.2%}")
+                    col_m2.metric("Sensibilidad", f"{sen:.2%}")
                     col_m3.metric("Especificidad", f"{esp:.2%}")
                     
-                    with st.expander("¿Qué significan estas métricas?"):
-                        st.write(f"- **Accuracy:** El modelo acertó en el **{acc:.2%}** de los casos al predecir el resultado.")
-                        st.write(f"- **Sensibilidad:** De todas las veces que *realmente* ocurrió '{target_value}', el modelo lo detectó correctamente el **{sens:.2%}** de las veces.")
-                        st.write(f"- **Especificidad:** De todas las veces que *NO* ocurrió '{target_value}', el modelo lo descartó correctamente el **{esp:.2%}** de las veces.")
+                    st.markdown("### Conclusion del Modelo Predictivo")
                     
-                    # Mostrar Matriz de Confusión
-                    st.markdown("#### Matriz de Confusión")
+                    if acc >= 0.8:
+                        nivel = "alta"
+                    elif acc >= 0.6:
+                        nivel = "moderada"
+                    else:
+                        nivel = "baja"
+                        
+                    st.info(f"""
+                    Basado en las metricas obtenidas, el modelo de inteligencia artificial ha logrado una capacidad de prediccion **{nivel}** (Exactitud del {acc:.2%}). 
+                    
+                    * **Lo que hace bien:** Tiene una Especificidad del **{esp:.2%}**, lo que significa que el algoritmo es capaz de descartar correctamente la gran mayoria de casos donde el evento '{val_a}' NO va a ocurrir.
+                    * **Areas de mejora:** Su Sensibilidad es del **{sen:.2%}**. Esto indica que porcentaje de los eventos '{val_a}' reales logro detectar. Si este numero es bajo, sugiere que las variables predictoras seleccionadas no son suficientes para que la IA entienda el patron completo.
+                    """)
+                    
                     st.plotly_chart(viz.plot_confusion_matrix(cm), use_container_width=True)
-                    
-                except Exception as e:
-                    st.error(f"Ocurrió un error al entrenar el modelo: {e}")
-
-    else:
-        st.warning("No se detectaron columnas válidas para analizar en el CSV.")
+                else:
+                    st.warning("Selecciona al menos una variable predictora.")
