@@ -5,26 +5,26 @@ from data_processor import DataProcessor
 from stats_engine import StatsEngine
 from visualizer import Visualizer
 from ml_model import BayesClassifier
+from ai_insights import AIAnalyzer
 
 # 1. Configuracion de la pagina
 st.set_page_config(page_title="DataBayes Pro", layout="wide")
 
-# 2. CSS Avanzado 
+# 2. CSS Avanzado (Paleta unificada Azul/Cian elegante)
 st.markdown("""
     <style>
         [data-testid="stHeader"] { display: none; }
         .main-header {
             position: fixed; top: 0; left: 0; width: 100%;
-            background: linear-gradient(90deg, #1f77b4 0%, #00d4ff 100%);
+            background: linear-gradient(90deg, #103ce7 0%, #64e9ff 100%);
             color: white; z-index: 9999; padding: 15px 0;
             text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        .main-header h1 { margin: 0; font-size: 28px; font-weight: 700; }
+        .main-header h1 { margin: 0; font-size: 28px; font-weight: 700; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;}
         .main .block-container { padding-top: 100px !important; }
-        .bayes-formula {
-            background-color: #f0f7ff; padding: 15px; border-radius: 10px;
-            border: 1px dashed #1f77b4; text-align: center; font-size: 20px;
-            margin-bottom: 20px;
+        .bayes-formula-container {
+            background-color: #f0f7ff; padding: 20px; border-radius: 10px;
+            border: 1px dashed #1f77b4; margin-bottom: 20px;
         }
     </style>
     <div class="main-header"><h1>ANALIZADOR BAYESIANO</h1></div>
@@ -35,26 +35,24 @@ dp = DataProcessor()
 stats = StatsEngine()
 viz = Visualizer()
 ml = BayesClassifier()
+ai = AIAnalyzer()
 
-# 3. Seccion principal de carga (Siempre visible al inicio)
+# 3. Seccion principal de carga
 st.subheader("Carga de Base de Datos")
 archivo = st.file_uploader("Arrastra tu archivo CSV aqui o haz clic para buscar", type="csv")
 
-# Si no hay archivo, mostramos un mensaje y no cargamos nada mas
 if archivo is None:
     st.info("Por favor, sube un archivo CSV para habilitar las secciones de analisis y visualizacion.")
 else:
-    # 4. Animacion de carga y lectura de archivo
     with st.spinner('Procesando datos, detectando columnas y limpiando registros...'):
-        time.sleep(1.2) # Pausa para visualizar la animacion de carga
+        time.sleep(1.2) 
         df = dp.load_data(archivo)
         cols = dp.detect_columns(df)
         
-    # Mostrar confirmacion con el nombre del archivo
     st.success(f"Archivo '{archivo.name}' cargado exitosamente. Total de registros: {len(df)}")
     
-    # 5. Creacion de Ventanas (Solo aparecen cuando el archivo ya esta cargado)
-    tab1, tab2, tab3 = st.tabs(["1. Gestion de Datos", "2. Analisis Bayesiano", "3. Machine Learning"])
+    # 5. Creacion de Ventanas
+    tab1, tab2, tab3, tab4 = st.tabs(["1. Gestion de Datos", "2. Analisis Bayesiano", "3. Machine Learning", "4. Insights IA"])
 
     # ==========================================
     # VENTANA 1: GESTION DE DATOS
@@ -64,6 +62,24 @@ else:
         with st.container(border=True):
             st.dataframe(df, use_container_width=True)
 
+        st.markdown("---")
+        st.subheader("Visualizacion Exploratoria")
+        col_vis1, col_vis2 = st.columns(2)
+        
+        with col_vis1:
+            hist_col = st.selectbox("Selecciona variable para Histograma", cols["numeric"] + cols["categorical"])
+            if hist_col:
+                # Usando el nuevo parámetro width='stretch' para evitar advertencias en consola
+                st.plotly_chart(viz.plot_histogram(df, hist_col), use_container_width=True)
+                
+        with col_vis2:
+            if cols["datetime"]:
+                date_col = st.selectbox("Selecciona variable para Grafica Temporal", cols["datetime"])
+                if date_col:
+                    st.plotly_chart(viz.plot_time_series(df, date_col), use_container_width=True)
+            else:
+                st.info("No se detectaron columnas de fechas en el archivo para generar la grafica temporal.")
+
     opciones = cols["binary"] + cols["categorical"]
     
     # ==========================================
@@ -72,14 +88,13 @@ else:
     with tab2:
         st.subheader("Motor de Probabilidades Condicionales")
         
-        with st.expander("Que es el Teorema de Bayes? (Haz clic para aprender)"):
+        with st.expander("Que es el Teorema de Bayes?"):
+            st.markdown("El Teorema de Bayes nos permite actualizar la probabilidad de un evento a medida que aparece nueva evidencia.")
+            with st.container(border=True):
+                st.latex(r'''P(A|B) = \frac{P(B|A) \cdot P(A)}{P(B)}''')
             st.markdown("""
-            El Teorema de Bayes nos permite actualizar la probabilidad de un evento a medida que aparece nueva evidencia.
-            """)
-            st.markdown(r'<div class="bayes-formula">P(A|B) = \frac{P(B|A) \cdot P(A)}{P(B)}</div>', unsafe_allow_html=True)
-            st.markdown("""
-            * **P(A|B)**: Probabilidad de que ocurra A sabiendo que paso B (lo que queremos descubrir).
-            * **P(A)**: Probabilidad inicial del evento (sin saber nada mas).
+            * **P(A|B)**: Probabilidad de que ocurra A sabiendo que paso B.
+            * **P(A)**: Probabilidad inicial del evento.
             * **P(B|A)**: Probabilidad de ver la evidencia si el evento es cierto.
             """)
 
@@ -108,18 +123,22 @@ else:
                     m3.metric("Resultado Final P(A|B)", f"{pab:.2%}")
                     
                     st.write("### Desglose del Calculo Paso a Paso")
+                    st.latex(rf'''P(A|B) = \frac{{{pba:.4f} \cdot {pa:.4f}}}{{{pb:.4f}}} = {pab:.4f}''')
+                    
                     st.markdown(f"""
-                    Para llegar a este resultado, el sistema aplico la formula matematica con tus datos:
-                    
-                    $$P(A|B) = \\frac{{{pba:.4f} \\cdot {pa:.4f}}}{{{pb:.4f}}} = {pab:.4f}$$
-                    
                     **Interpretacion Detallada:**
-                    1. **La Base:** Sin saber ninguna otra informacion, la probabilidad general de que '{target}' sea '{val_a}' es del **{pa:.2%}**.
-                    2. **La Evidencia:** Analizamos la evidencia '{feat}' = '{val_b}'. Nos dimos cuenta de que cuando el evento A si ocurre, esta evidencia esta presente el **{pba:.2%}** de las veces.
-                    3. **La Conclusion:** Al integrar esta evidencia, nuestra certeza cambia. Ahora sabemos que si observamos la evidencia '{val_b}', la probabilidad real de que ocurra '{val_a}' se actualiza al **{pab:.2%}**.
+                    1. **La Base:** Sin saber ninguna otra informacion, la probabilidad general de que **{target}** sea **{val_a}** es del **{pa:.2%}**.
+                    2. **La Evidencia:** Analizamos la evidencia **{feat}** = **{val_b}**. Nos dimos cuenta de que cuando el evento A si ocurre, esta evidencia esta presente el **{pba:.2%}** de las veces.
+                    3. **La Conclusion:** Al integrar esta evidencia, nuestra certeza cambia. Ahora sabemos que si observamos la evidencia **{val_b}**, la probabilidad real de que ocurra **{val_a}** se actualiza al **{pab:.2%}**.
                     """)
                     
-                    st.plotly_chart(viz.plot_distribution(df, feat, target), use_container_width=True)
+                    st.markdown("---")
+                    st.write("### Graficas de Impacto Bayesiano")
+                    col_chart1, col_chart2 = st.columns(2)
+                    with col_chart1:
+                        st.plotly_chart(viz.plot_probability_comparison(pa, pab), use_container_width=True)
+                    with col_chart2:
+                        st.plotly_chart(viz.plot_distribution(df, feat, target), use_container_width=True)
 
     # ==========================================
     # VENTANA 3: MACHINE LEARNING
@@ -133,7 +152,7 @@ else:
             
             if st.button("Entrenar Modelo Predictivo", type="primary"):
                 if preds:
-                    with st.spinner('Entrenando algoritmo clasificador con tus datos...'):
+                    with st.spinner('Entrenando algoritmo clasificador...'):
                         time.sleep(1)
                         cm, acc, sen, esp = ml.evaluate_model(df, target, val_a, preds)
                     
@@ -156,9 +175,31 @@ else:
                     Basado en las metricas obtenidas, el modelo de inteligencia artificial ha logrado una capacidad de prediccion **{nivel}** (Exactitud del {acc:.2%}). 
                     
                     * **Lo que hace bien:** Tiene una Especificidad del **{esp:.2%}**, lo que significa que el algoritmo es capaz de descartar correctamente la gran mayoria de casos donde el evento '{val_a}' NO va a ocurrir.
-                    * **Areas de mejora:** Su Sensibilidad es del **{sen:.2%}**. Esto indica que porcentaje de los eventos '{val_a}' reales logro detectar. Si este numero es bajo, sugiere que las variables predictoras seleccionadas no son suficientes para que la IA entienda el patron completo.
+                    * **Areas de mejora:** Su Sensibilidad es del **{sen:.2%}**. Esto indica que porcentaje de los eventos '{val_a}' reales logro detectar.
                     """)
                     
                     st.plotly_chart(viz.plot_confusion_matrix(cm), use_container_width=True)
                 else:
                     st.warning("Selecciona al menos una variable predictora.")
+
+    # ==========================================
+    # VENTANA 4: INSIGHTS CON INTELIGENCIA ARTIFICIAL
+    # ==========================================
+    with tab4:
+        st.subheader("Generación de Insights Estadísticos mediante IA")
+        st.write("Conecta este analizador con un modelo de Lenguaje (LLM) para obtener conclusiones automáticas sobre tu base de datos.")
+        
+        with st.container(border=True):
+            st.info("Para esta sección, necesitas una API Key de Google Gemini (es gratuita). Consíguela en: https://aistudio.google.com/")
+            
+            api_key = st.text_input("Ingresa tu API Key de Gemini:", type="password")
+            
+            if st.button("Generar Insights Estadísticos", type="primary"):
+                if not api_key:
+                    st.error("Por favor, ingresa una API Key válida para continuar.")
+                else:
+                    with st.spinner("Analizando la matriz de datos y generando reporte..."):
+                        reporte_ia = ai.generate_insights(api_key, df)
+                        
+                    st.markdown("### Reporte Analítico Generado")
+                    st.markdown(reporte_ia)
